@@ -133,6 +133,14 @@ BrowserGlue.prototype = {
   _migrationImportsDefaultBookmarks: false,
   _isGhostBusterObserver: false,
 
+  _getMemoryTier: function() {
+    try {
+      return Services.prefs.getIntPref("browser.memoryTier");
+    } catch (ex) {
+      return 3;
+    }
+  },
+
   _setPrefToSaveSession: function(aForce) {
     if (!this._saveSession && !aForce)
       return;
@@ -229,8 +237,10 @@ BrowserGlue.prototype = {
         subject.data = true;
         break;
       case "places-init-complete":
-        if (!this._migrationImportsDefaultBookmarks)
+        if (!this._migrationImportsDefaultBookmarks &&
+            this._getMemoryTier() >= 2) {
           this._initPlaces(false);
+        }
 
         Services.obs.removeObserver(this, "places-init-complete");
         this._isPlacesInitObserver = false;
@@ -279,7 +289,9 @@ BrowserGlue.prototype = {
         this._migrationImportsDefaultBookmarks = true;
         break;
       case "initial-migration-did-import-default-bookmarks":
-        this._initPlaces(true);
+        if (this._getMemoryTier() >= 2) {
+          this._initPlaces(true);
+        }
         break;
       case "handle-xul-text-link":
         let linkHandled = subject.QueryInterface(Ci.nsISupportsPRBool);
@@ -582,33 +594,48 @@ BrowserGlue.prototype = {
     } catch (ex) { /* missing any of the prefs is not critical */ }
 
     UserAgentOverrides.init();
-    
-    PageThumbs.init();
-    webrtcUI.init();
-    AboutHome.init();
 
-    NewTabUtils.init();
-    AboutNewTab.init();
+    // Optional browser services are a measurable part of the idle shell.
+    // Tier 2/3 keep the historical startup graph; tier 0/1 start only the
+    // navigation, tab, session, and crash path. The default is 3 so an
+    // existing profile is unchanged until a tier is selected explicitly.
+    let memoryTier = this._getMemoryTier();
 
-    NewTabMessages.init();
+    if (memoryTier >= 2) {
+      PageThumbs.init();
+      webrtcUI.init();
+      AboutHome.init();
 
-    SessionStore.init();
-    ContentSearch.init();
-    FormValidationHandler.init();
+      NewTabUtils.init();
+      AboutNewTab.init();
 
-    ContentClick.init();
-    RemotePrompt.init();
-    Feeds.init();
-    ContentPrefServiceParent.init();
+      NewTabMessages.init();
 
-    LoginManagerParent.init();
-    ReaderParent.init();
-    URLBarZoom.init();
+      ContentSearch.init();
+      FormValidationHandler.init();
+
+      ContentClick.init();
+      RemotePrompt.init();
+      Feeds.init();
+      ContentPrefServiceParent.init();
+
+      LoginManagerParent.init();
+      ReaderParent.init();
+      URLBarZoom.init();
+    }
+
+    if (memoryTier >= 1) {
+      SessionStore.init();
+    }
 
     // Ensure we keep track of places/pw-mananager undo by init'ing this early.
-    Cu.import("resource:///modules/AutoMigrate.jsm");
+    if (memoryTier >= 2) {
+      Cu.import("resource:///modules/AutoMigrate.jsm");
+    }
 
-    TabCrashHandler.init();
+    if (memoryTier >= 1) {
+      TabCrashHandler.init();
+    }
 
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
   },
@@ -819,6 +846,8 @@ BrowserGlue.prototype = {
 
   // the first browser window has finished initializing
   _onFirstWindowLoaded: function(aWindow) {
+    let memoryTier = this._getMemoryTier();
+
     // Initialize PdfJs when running in-process and remote. This only
     // happens once since PdfJs registers global hooks. If the PdfJs
     // extension is installed the init method below will be overridden
@@ -826,17 +855,20 @@ BrowserGlue.prototype = {
     // parent only: configure default prefs, set up pref observers, register
     // pdf content handler, and initializes parent side message manager
     // shim for privileged api access.
-    PdfJs.init(true);
-    // child only: similar to the call above for parent - register content
-    // handler and init message manager child shim for privileged api access.
-    // With older versions of the extension installed, this load will fail
-    // passively.
-    Services.ppmm.loadProcessScript("resource://pdf.js/pdfjschildbootstrap.js", true);
+    if (memoryTier >= 2) {
+      PdfJs.init(true);
+      // child only: similar to the call above for parent - register content
+      // handler and init message manager child shim for privileged api access.
+      // With older versions of the extension installed, this load will fail
+      // passively.
+      Services.ppmm.loadProcessScript("resource://pdf.js/pdfjschildbootstrap.js", true);
+    }
 
 #ifdef XP_WIN
     // For Windows 7, initialize the jump list module.
     const WINTASKBAR_CONTRACTID = "@mozilla.org/windows-taskbar;1";
-    if (WINTASKBAR_CONTRACTID in Cc &&
+    if (memoryTier >= 2 &&
+        WINTASKBAR_CONTRACTID in Cc &&
         Cc[WINTASKBAR_CONTRACTID].getService(Ci.nsIWinTaskbar).available) {
       let temp = {};
       Cu.import("resource:///modules/WindowsJumpLists.jsm", temp);
@@ -880,8 +912,10 @@ BrowserGlue.prototype = {
 
     this._checkForOldBuildUpdates();
 
-    AutoCompletePopup.init();
-    DateTimePickerHelper.init();
+    if (memoryTier >= 2) {
+      AutoCompletePopup.init();
+      DateTimePickerHelper.init();
+    }
 
     if (typeof this._firstWindowLoaded != "function") {
       let resolveFirstWindow;
@@ -920,8 +954,10 @@ BrowserGlue.prototype = {
     AboutNewTab.uninit();
     webrtcUI.uninit();
     FormValidationHandler.uninit();
-    AutoCompletePopup.uninit();
-    DateTimePickerHelper.uninit();
+    if (this._getMemoryTier() >= 2) {
+      AutoCompletePopup.uninit();
+      DateTimePickerHelper.uninit();
+    }
   },
 
   // All initial windows have opened.

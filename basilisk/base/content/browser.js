@@ -146,6 +146,14 @@ var gAppInfo = Cc["@mozilla.org/xre/app-info;1"]
                   .getService(Ci.nsIXULAppInfo)
                   .QueryInterface(Ci.nsIXULRuntime);
 
+function getMemoryTier() {
+  try {
+    return Services.prefs.getIntPref("browser.memoryTier");
+  } catch (ex) {
+    return 3;
+  }
+}
+
 #ifndef XP_MACOSX
 var gEditUIVisible = true;
 #endif
@@ -1002,6 +1010,7 @@ var gBrowserInit = {
 
   _delayedStartup: function() {
     let tmp = {};
+    let memoryTier = getMemoryTier();
     this._cancelDelayedStartup();
 
     // We need to set the OfflineApps message listeners up before we
@@ -1120,10 +1129,11 @@ var gBrowserInit = {
     // We do this before the session restore service gets initialized so we can
     // apply full zoom settings to tabs restored by the session restore service.
     FullZoom.init();
-    PanelUI.init();
-    LightweightThemeListener.init();
-
-    SidebarUI.startDelayedLoad();
+    if (memoryTier >= 2) {
+      PanelUI.init();
+      LightweightThemeListener.init();
+      SidebarUI.startDelayedLoad();
+    }
 
     UpdateUrlbarSearchSplitterState();
 
@@ -1152,8 +1162,10 @@ var gBrowserInit = {
     // Enable/Disable auto-hide tabbar
     gBrowser.tabContainer.updateVisibility();
 
-    BookmarkingUI.init();
-    AutoShowBookmarksToolbar.init();
+    if (memoryTier >= 2) {
+      BookmarkingUI.init();
+      AutoShowBookmarksToolbar.init();
+    }
 
     gPrefService.addObserver(gHomeButton.prefDomain, gHomeButton, false);
 
@@ -1184,7 +1196,9 @@ var gBrowserInit = {
     Cu.import("resource:///modules/NetworkPrioritizer.jsm", NP);
     NP.trackBrowserWindow(window);
 
-    PlacesToolbarHelper.init();
+    if (memoryTier >= 2) {
+      PlacesToolbarHelper.init();
+    }
 
     ctrlTab.readPref();
     gPrefService.addObserver(ctrlTab.prefName, ctrlTab, false);
@@ -1194,33 +1208,39 @@ var gBrowserInit = {
     // active downloads) and speeds up the first-load of the download manager UI.
     // If the user manually opens the download manager before the timeout, the
     // downloads will start right away, and initializing again won't hurt.
-    setTimeout(function() {
-      try {
-        Cu.import("resource:///modules/DownloadsCommon.jsm", {})
-          .DownloadsCommon.initializeAllDataLinks();
-        Cu.import("resource:///modules/DownloadsTaskbar.jsm", {})
-          .DownloadsTaskbar.registerIndicator(window);
-      } catch (ex) {
-        Cu.reportError(ex);
-      }
-    }, 10000);
+    if (memoryTier >= 2) {
+      setTimeout(function() {
+        try {
+          Cu.import("resource:///modules/DownloadsCommon.jsm", {})
+            .DownloadsCommon.initializeAllDataLinks();
+          Cu.import("resource:///modules/DownloadsTaskbar.jsm", {})
+            .DownloadsTaskbar.registerIndicator(window);
+        } catch (ex) {
+          Cu.reportError(ex);
+        }
+      }, 10000);
+    }
 
     // Load the Login Manager data from disk off the main thread, some time
     // after startup.  If the data is required before the timeout, for example
     // because a restored page contains a password field, it will be loaded on
     // the main thread, and this initialization request will be ignored.
-    setTimeout(function() {
-      try {
-        Services.logins;
-      } catch (ex) {
-        Cu.reportError(ex);
-      }
-    }, 3000);
+    if (memoryTier >= 2) {
+      setTimeout(function() {
+        try {
+          Services.logins;
+        } catch (ex) {
+          Cu.reportError(ex);
+        }
+      }, 3000);
+    }
 
     // The object handling the downloads indicator is also initialized here in the
     // delayed startup function, but the actual indicator element is not loaded
     // unless there are downloads to be displayed.
-    DownloadsButton.initializeIndicator();
+    if (memoryTier >= 2) {
+      DownloadsButton.initializeIndicator();
+    }
 
 #ifndef XP_MACOSX
     updateEditUIVisibility();
@@ -1229,12 +1249,14 @@ var gBrowserInit = {
     placesContext.addEventListener("popuphiding", updateEditUIVisibility, false);
 #endif
 
-    LightWeightThemeWebInstaller.init();
+    if (memoryTier >= 2) {
+      LightWeightThemeWebInstaller.init();
 
 #ifdef XP_WIN
-    if (Win7Features)
-      Win7Features.onOpenWindow();
+      if (Win7Features)
+        Win7Features.onOpenWindow();
 #endif
+    }
 
     PointerlockFsWarning.init();
     FullScreen.init();
@@ -1242,14 +1264,18 @@ var gBrowserInit = {
 
 #ifdef MOZ_SERVICES_SYNC
     // initialize the sync UI
-    gSyncUI.init();
+    if (memoryTier >= 2) {
+      gSyncUI.init();
+    }
 #endif
 
-    gBrowserThumbnails.init();
+    if (memoryTier >= 2) {
+      gBrowserThumbnails.init();
 
-    gMenuButtonBadgeManager.init();
+      gMenuButtonBadgeManager.init();
 
-    gMenuButtonUpdateBadge.init();
+      gMenuButtonUpdateBadge.init();
+    }
 
     window.addEventListener("mousemove", MousePosTracker, false);
     window.addEventListener("dragover", MousePosTracker, false);
@@ -1268,27 +1294,33 @@ var gBrowserInit = {
     }
 
     // Delay this a minute because there's no rush
-    setTimeout(() => {
-      this.gmpInstallManager = new GMPInstallManager();
-      // We don't really care about the results, if someone is interested they
-      // can check the log.
-      this.gmpInstallManager.simpleCheckAndInstall().then(null, () => {});
-    }, 1000 * 60);
+    if (memoryTier >= 2) {
+      setTimeout(() => {
+        this.gmpInstallManager = new GMPInstallManager();
+        // We don't really care about the results, if someone is interested they
+        // can check the log.
+        this.gmpInstallManager.simpleCheckAndInstall().then(null, () => {});
+      }, 1000 * 60);
+    }
 
-    SessionStore.promiseInitialized.then(() => {
-      // Bail out if the window has been closed in the meantime.
-      if (window.closed) {
-        return;
-      }
+    if (memoryTier >= 1) {
+      SessionStore.promiseInitialized.then(() => {
+        // Bail out if the window has been closed in the meantime.
+        if (window.closed) {
+          return;
+        }
 
-      // Enable the Restore Last Session command if needed
-      RestoreLastSessionObserver.init();
+        // Enable the Restore Last Session command if needed
+        RestoreLastSessionObserver.init();
 
-      // Start monitoring slow add-ons
-      AddonWatcher.init();
+        if (memoryTier >= 2) {
+          // Start monitoring slow add-ons
+          AddonWatcher.init();
 
-      PanicButtonNotifier.init();
-    });
+          PanicButtonNotifier.init();
+        }
+      });
+    }
 
     gBrowser.tabContainer.addEventListener("TabSelect", function() {
       for (let panel of document.querySelectorAll("panel[tabspecific='true']")) {
@@ -1355,9 +1387,10 @@ var gBrowserInit = {
     } catch (ex) {
     }
 
-    PlacesToolbarHelper.uninit();
-
-    BookmarkingUI.uninit();
+    if (getMemoryTier() >= 2) {
+      PlacesToolbarHelper.uninit();
+      BookmarkingUI.uninit();
+    }
 
     TabsInTitlebar.uninit();
 
@@ -4029,7 +4062,9 @@ var XULBrowserWindow = {
 
       URLBarSetURI(aLocationURI);
 
-      BookmarkingUI.onLocationChange();
+      if (getMemoryTier() >= 2) {
+        BookmarkingUI.onLocationChange();
+      }
 
       gIdentityHandler.onLocationChange();
 
@@ -6067,7 +6102,9 @@ var gContextualIdentity = {
     }
     this._initialized = true;
 
-    SessionStore.persistTabAttribute("usercontextid");
+    if (getMemoryTier() >= 1) {
+      SessionStore.persistTabAttribute("usercontextid");
+    }
 
     Services.obs.addObserver(this, "contextual-identity-added", false);
     Services.obs.addObserver(this, "contextual-identity-updated", false);
