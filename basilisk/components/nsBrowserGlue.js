@@ -374,6 +374,9 @@ BrowserGlue.prototype = {
 
   // initialization (called on application startup)
   _init: function() {
+    // Pair shutdown with completed initialization, rather than the tier at
+    // shutdown. Do not resolve lazy module getters just to tear them down.
+    this._initializedModules = new Set();
     let os = Services.obs;
     os.addObserver(this, "notifications-open-settings", false);
     os.addObserver(this, "prefservice:after-app-defaults", false);
@@ -594,6 +597,7 @@ BrowserGlue.prototype = {
     } catch (ex) { /* missing any of the prefs is not critical */ }
 
     UserAgentOverrides.init();
+    this._initializedModules.add("UserAgentOverrides");
 
     // Optional browser services are a measurable part of the idle shell.
     // Tier 2/3 keep the historical startup graph; tier 0/1 start only the
@@ -603,16 +607,21 @@ BrowserGlue.prototype = {
 
     if (memoryTier >= 2) {
       PageThumbs.init();
+      this._initializedModules.add("PageThumbs");
       webrtcUI.init();
+      this._initializedModules.add("webrtcUI");
       AboutHome.init();
 
       NewTabUtils.init();
       AboutNewTab.init();
+      this._initializedModules.add("AboutNewTab");
 
       NewTabMessages.init();
+      this._initializedModules.add("NewTabMessages");
 
       ContentSearch.init();
       FormValidationHandler.init();
+      this._initializedModules.add("FormValidationHandler");
 
       ContentClick.init();
       RemotePrompt.init();
@@ -914,7 +923,9 @@ BrowserGlue.prototype = {
 
     if (memoryTier >= 2) {
       AutoCompletePopup.init();
+      this._initializedModules.add("AutoCompletePopup");
       DateTimePickerHelper.init();
+      this._initializedModules.add("DateTimePickerHelper");
     }
 
     if (typeof this._firstWindowLoaded != "function") {
@@ -948,14 +959,28 @@ BrowserGlue.prototype = {
       delete this._bookmarksBackupIdleTime;
     }
 
-    UserAgentOverrides.uninit();
-    PageThumbs.uninit();
-    NewTabMessages.uninit();
-    AboutNewTab.uninit();
-    webrtcUI.uninit();
-    FormValidationHandler.uninit();
-    if (this._getMemoryTier() >= 2) {
+    if (this._initializedModules.delete("UserAgentOverrides")) {
+      UserAgentOverrides.uninit();
+    }
+    if (this._initializedModules.delete("PageThumbs")) {
+      PageThumbs.uninit();
+    }
+    if (this._initializedModules.delete("NewTabMessages")) {
+      NewTabMessages.uninit();
+    }
+    if (this._initializedModules.delete("AboutNewTab")) {
+      AboutNewTab.uninit();
+    }
+    if (this._initializedModules.delete("webrtcUI")) {
+      webrtcUI.uninit();
+    }
+    if (this._initializedModules.delete("FormValidationHandler")) {
+      FormValidationHandler.uninit();
+    }
+    if (this._initializedModules.delete("AutoCompletePopup")) {
       AutoCompletePopup.uninit();
+    }
+    if (this._initializedModules.delete("DateTimePickerHelper")) {
       DateTimePickerHelper.uninit();
     }
   },

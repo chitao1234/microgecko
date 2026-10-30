@@ -21,6 +21,11 @@ var URLBarZoom = {
 
 function updateZoomButton(aSubject, aTopic) {
   let win = aSubject.ownerDocument.defaultView;
+  // Location-change notifications are dispatched asynchronously. The browser's
+  // window may have gone away while the notification was waiting to run.
+  if (!win) {
+    return;
+  }
   let customizableZoomControls = win.document.getElementById("zoom-controls");
   let zoomResetButton = win.document.getElementById("urlbar-zoom-button");
   let zoomFactor = Math.round(win.ZoomManager.zoom * 100);

@@ -2493,13 +2493,21 @@ var gMenuButtonBadgeManager = {
   fxaBadge: null,
   downloadBadge: null,
   appUpdateBadge: null,
+  _panel: null,
 
   init: function () {
-    PanelUI.panel.addEventListener("popupshowing", this, true);
+    if (!this._panel) {
+      let panel = PanelUI.panel;
+      panel.addEventListener("popupshowing", this, true);
+      this._panel = panel;
+    }
   },
 
   uninit: function () {
-    PanelUI.panel.removeEventListener("popupshowing", this, true);
+    if (this._panel) {
+      this._panel.removeEventListener("popupshowing", this, true);
+      this._panel = null;
+    }
   },
 
   handleEvent: function (e) {
