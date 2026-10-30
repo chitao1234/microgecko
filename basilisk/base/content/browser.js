@@ -6196,15 +6196,9 @@ var gContextualIdentity = {
   updateTab(tab) {
     let userContextId = parseInt(tab.getAttribute("usercontextid"), 10) || 0;
     let identity = ContextualIdentityService.getIdentityFromId(userContextId);
-    let browser = tab.linkedBrowser;
-
-    if (browser) {
-      if (userContextId) {
-        browser.setAttribute("usercontextid", userContextId);
-      } else {
-        browser.removeAttribute("usercontextid");
-      }
-    }
+    // _createBrowser sets the immutable usercontextid before constructing its
+    // docshell. Updating the container decoration must not rewrite or remove
+    // that attribute (including an explicitly supplied string "0").
 
     if (identity && this._canShowUI) {
       tab.style.setProperty("--usercontext-tab-color",

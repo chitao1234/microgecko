@@ -826,15 +826,17 @@
                 }
               }
 
+              if (topLevel) {
+                // Publish the location before invoking arbitrary listeners.
+                // A listener can synchronously close the tab and destroy us.
+                this.mBrowser.lastURI = aLocation;
+                this.mBrowser.lastLocationChange = Date.now();
+              }
+
               if (!this.mBlank) {
                 this._callProgressListeners("onLocationChange",
                                             [aWebProgress, aRequest, aLocation,
                                              aFlags]);
-              }
-
-              if (topLevel) {
-                this.mBrowser.lastURI = aLocation;
-                this.mBrowser.lastLocationChange = Date.now();
               }
             },
 
