@@ -1579,7 +1579,11 @@ var SessionStoreInternal = {
     // provide useful progress information to AsyncShutdown.
     for (let [win, promise] of windowPromises) {
       yield promise;
-      this._collectWindowData(win);
+      // The window may have closed while its tabs were being flushed. Its
+      // state has already been collected, so do not collect it after cleanup.
+      if (win.__SSi && this._windows[win.__SSi]) {
+        this._collectWindowData(win);
+      }
       progress.current++;
     };
 
