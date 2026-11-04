@@ -17,6 +17,7 @@ const { Services } = Cu.import("resource://gre/modules/Services.jsm", {});
 const { XPCOMUtils } = Cu.import("resource://gre/modules/XPCOMUtils.jsm", {});
 
 const PREF_ENABLED = "browser.internal-userscripts.enabled";
+const PREF_DEBUG = "browser.internal-userscripts.debug";
 
 function InternalUserscriptsService() {
   this.wrappedJSObject = this;
@@ -100,6 +101,9 @@ InternalUserscriptsService.prototype = {
     } catch (e) {}
     let contentWin = win.wrappedJSObject || win;
     let logPolyfill = function (name, source) {
+      if (!Services.prefs.getBoolPref(PREF_DEBUG, false)) {
+        return;
+      }
       try {
         if (
           contentWin.console &&
