@@ -4996,7 +4996,9 @@ function hrefAndLinkNodeForClickEvent(event)
  */
 function contentAreaClick(event, isPanelClick)
 {
-  if (!event.isTrusted || event.defaultPrevented || event.button == 2)
+  // Middle-button actions use the content auxclick handler. The legacy
+  // chrome-only click precedes editor handling and must not open a link.
+  if (!event.isTrusted || event.defaultPrevented || event.button != 0)
     return;
 
   let [href, linkNode] = hrefAndLinkNodeForClickEvent(event);

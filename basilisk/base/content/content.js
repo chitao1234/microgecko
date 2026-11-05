@@ -397,10 +397,24 @@ var ClickEventHandler = {
     Cc["@mozilla.org/eventlistenerservice;1"]
       .getService(Ci.nsIEventListenerService)
       .addSystemEventListener(global, "click", this, true);
+    Cc["@mozilla.org/eventlistenerservice;1"]
+      .getService(Ci.nsIEventListenerService)
+      .addSystemEventListener(global, "auxclick", this, true);
   },
 
   handleEvent: function(event) {
-    if (!event.isTrusted || event.defaultPrevented || event.button == 2) {
+    if (!event.isTrusted || event.defaultPrevented || event.button == 2 ||
+        (event.type == "click" && event.button == 1)) {
+      return;
+    }
+
+    // Let editor handle links and middle-click paste inside editable content,
+    // matching Firefox's ClickHandlerChild rather than navigating first.
+    let target = event.composedTarget;
+    if (target.isContentEditable ||
+        (target.ownerDocument && target.ownerDocument.designMode == "on") ||
+        target instanceof content.HTMLInputElement ||
+        target instanceof content.HTMLTextAreaElement) {
       return;
     }
 
