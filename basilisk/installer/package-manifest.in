@@ -665,6 +665,9 @@
 #endif
 @RESPATH@/chrome/pippki@JAREXT@
 @RESPATH@/chrome/pippki.manifest
+#ifdef MOZ_ENABLE_PROFILER_SPS
+@RESPATH@/components/profiler.xpt
+#endif
 @RESPATH@/components/pipnss.xpt
 @RESPATH@/components/pippki.xpt
 
